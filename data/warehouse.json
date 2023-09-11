@@ -1,0 +1,103 @@
+{
+  "Dimensions": {
+      "Length": 60,
+      "Width": 40,
+      "Height": 0,
+      "Unit": "m"
+  },
+
+  "Pallets": [
+
+      {
+          "LPN": "LPN001",
+          "WarehouseID": 1,
+          "ShipmentID": 1,
+          "Coordinates": {
+            "x": 0,
+            "y": 0,
+            "z": 0
+          },
+          "Dimensions": {
+            "Length": 8,
+            "Width": 3,
+            "Height": 5,
+            "Unit": "m"
+          },
+          "Available": "Yes"
+        },
+      
+      {
+          "LPN": "LPN002", 
+          "WarehouseID": 1,
+          "ShipmentID": 1,
+          "Coordinates": {
+            "x": 0,
+            "y": 4,
+            "z": 0
+          },
+          "Dimensions": {
+            "Length": 8,
+            "Width": 3,
+            "Height": 5,
+            "Unit": "m"
+          },
+          "Available": "No"
+      },
+
+      {
+          "LPN": "LPN003",
+          "WarehouseID": 1,
+          "ShipmentID": 1,
+          "Coordinates": {
+            "x": 9,
+            "y": 0,
+            "z": 0
+          },
+          "Dimensions": {
+            "Length": 8,
+            "Width": 7,
+            "Height": 5,
+            "Unit": "m"
+          },
+          "Available": "Yes"
+      },
+       
+      {
+          "LPN": "LPN004",
+          "WarehouseID": 1,
+          "ShipmentID": 1,
+          "Coordinates": {
+            "x": 18,
+            "y": 0,
+            "z": 0
+          },
+          "Dimensions": {
+            "Length": 8,
+            "Width": 10,
+            "Height": 5,
+            "Unit": "m"
+          },
+          "Available": "Yes"
+      },
+
+      {
+        "LPN": "LPN004",
+        "WarehouseID": 1,
+        "ShipmentID": 1,
+        "Coordinates": {
+          "x": 10,
+          "y": 10,
+          "z": 0
+        },
+        "Dimensions": {
+          "Length": 8,
+          "Width": 10,
+          "Height": 5,
+          "Unit": "m"
+        },
+        "Available": "Yes"
+    }
+
+
+  ]
+}

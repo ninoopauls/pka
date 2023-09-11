@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Display JSON</title>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+<style>
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  th, td {
+    padding: 8px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+  }
+  th {
+    background-color: #f4f4f4;
+  }
+  #newDataRow input {
+    width: 90%;
+  }
+</style>
+</head>
+<body>
+
+<table>
+  <thead>
+    <tr>
+      <th>LPN</th>
+      <th>Warehouse ID</th>
+      <th>Shipment ID</th>
+      <th>Coordinates</th>
+      <th>Dimensions</th>
+      <th>Available</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody id="tableBody">
+  </tbody>
+  <tfoot>
+    <tr id="newDataRow">
+      <td><input type="text" placeholder="LPN"></td>
+      <td><input type="text" placeholder="Warehouse ID"></td>
+      <td><input type="text" placeholder="Shipment ID"></td>
+      <td><input type="text" placeholder="Coordinates (x, y, z)"></td>
+      <td><input type="text" placeholder="Dimensions (length, width, height, unit)"></td>
+      <td><input type="text" placeholder="Available"></td>
+      <td><button onclick="addRow()">Add</button></td>
+    </tr>
+  </tfoot>
+</table>
+
+<button id="saveButton">Save Changes</button>
+
+<script>
+$(document).ready(function() {
+  let jsonData = null;
+
+  function fetchAndDisplayData() {
+    $.ajax({
+      url: "https://api.jsonbin.io/v3/b/64fdaa27d972192679c1337c",
+      headers: {
+        "X-Master-Key": "$2b$10$GWk8ymBTd3NuWboIZsmU8OE59AKFCDvHL61VanWfWlbqmHA/8C7Ta"
+      },
+      success: function(data) {
+        jsonData = data.record;
+        let html = "";
+        debugger
+        data.record.Pallets.forEach((item, index) => {
+          html += generateRowHtml(item, index);
+        });
+        $('#tableBody').html(html);
+      }
+    });
+  }
+
+  function generateRowHtml(item, index) {
+    return `<tr data-index="${index}">
+      <td>${item.LPN}</td>
+      <td>${item.WarehouseID}</td>
+      <td>${item.ShipmentID}</td>
+      <td>x: ${item.Coordinates.x}, y: ${item.Coordinates.y}, z: ${item.Coordinates.z}</td>
+      <td>Length: ${item.Dimensions.Length}, Width: ${item.Dimensions.Width}, Height: ${item.Dimensions.Height}, Unit: ${item.Dimensions.Unit}</td>
+      <td>${item.Available}</td>
+      <td><button onclick="editRow(${index})">Edit</button></td>
+    </tr>`;
+  }
+
+  window.editRow = function(index) {
+    const item = jsonData.Pallets[index];
+    const newItem = prompt("Edit data (in JSON format):", JSON.stringify(item));
+    if (newItem) {
+      jsonData.Pallets[index] = JSON.parse(newItem);
+      fetchAndDisplayData();
+    }
+  }
+
+  window.addRow = function() {
+    const newRow = {
+      LPN: $('#newDataRow input:eq(0)').val(),
+      WarehouseID: $('#newDataRow input:eq(1)').val(),
+      ShipmentID: $('#newDataRow input:eq(2)').val(),
+      Coordinates: {
+        x: parseFloat($('#newDataRow input:eq(3)').val().split(',')[0]),
+        y: parseFloat($('#newDataRow input:eq(3)').val().split(',')[1]),
+        z: parseFloat($('#newDataRow input:eq(3)').val().split(',')[2])
+      },
+      Dimensions: {
+        Length: parseFloat($('#newDataRow input:eq(4)').val().split(',')[0]),
+        Width: parseFloat($('#newDataRow input:eq(4)').val().split(',')[1]),
+        Height: parseFloat($('#newDataRow input:eq(4)').val().split(',')[2]),
+        Unit: $('#newDataRow input:eq(4)').val().split(',')[3]
+      },
+      Available: $('#newDataRow input:eq(5)').val()
+    };
+    jsonData.Pallets.push(newRow);
+    $('#tableBody').append(generateRowHtml(newRow, jsonData.Pallets.length - 1));
+  }
+
+  $('#saveButton').click(function() {
+    $.ajax({
+      url: "https://api.jsonbin.io/v3/b/64fdaa27d972192679c1337c",
+      type: "PUT",
+      headers: {
+        "X-Master-Key": "$2b$10$GWk8ymBTd3NuWboIZsmU8OE59AKFCDvHL61VanWfWlbqmHA/8C7Ta",
+        "Content-Type": "application/json"
+      },
+      
+      data: JSON.stringify(jsonData),
+      
+      success: function() {
+        alert('Data saved successfully');
+      },
+
+      
+
+      error: function(jqXHR, textStatus, errorThrown) {
+        console.error("Error status: " + textStatus);
+        console.error("Error thrown: " + errorThrown);
+        console.error("Response details: ", jqXHR);
+        debugger;
+        alert('Error saving data: ' + textStatus);
+      }
+
+    });
+  });
+
+  fetchAndDisplayData();
+});
+</script>
+</body>
+</html>
