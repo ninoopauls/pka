@@ -107,7 +107,7 @@ function init() {
             },
             success: function (data) {
                 // jsonData = data.record;
-                 warehouse = data.record.record;
+                 warehouse = data.record;
                 //debugger;
             }
         });
