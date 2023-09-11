@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Google Sheets Public Data Access</title>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+</head>
+<body>
+
+<table id="sheet-table" border=1>
+  
+</table>
+
+<script>
+$(document).ready(function() {
+  $.ajax({
+    url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSTiWsiGURIqynsSiEDV7Vfi_QZDiSovIOHV3crrYreFvIBVk0wTqS2xo4fUm82Re89Jn0cMIDI6sSE/pub?gid=0&single=true&output=csv', // Replace with your sheet's published CSV URL
+    dataType: 'text',
+  }).done(successFunction);
+});
+
+function successFunction(data) {
+  var allRows = data.split(/\r?\n|\r/);
+  var table = $('#sheet-table');
+  for (var singleRow = 0; singleRow < allRows.length; singleRow++) {
+    if (allRows[singleRow]) {
+      var newRow = $('<tr></tr>');
+      var cols = allRows[singleRow].split(',');
+      for (var i = 0; i < cols.length; i++) {
+        newRow.append('<td>' + cols[i] + '</td>');
+      }
+      table.append(newRow);
+    }
+  }
+}
+</script>
+</body>
+</html>

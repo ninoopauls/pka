@@ -1,13 +1,7 @@
 //import warehouse from '../../data/warehouse.json' assert { type: "json" };
 
 var warehouse;
-
-
-  
-
-
-
-
+var warehouse_csv;
 
 var board, scene, camera, renderer, controls, mouse, raycaster, selectedPiece = null;
 var INTERSECTED;
@@ -96,8 +90,22 @@ function createRepeatingTexture(fileName, repeatX, repeatY) {
 function init() {
    
 
-
+    
    
+    try {
+        $.ajax({
+            async: false,
+            url: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSTiWsiGURIqynsSiEDV7Vfi_QZDiSovIOHV3crrYreFvIBVk0wTqS2xo4fUm82Re89Jn0cMIDI6sSE/pub?gid=0&single=true&output=csv', // Replace with your sheet's published CSV URL
+            dataType: 'text',
+            success: function (data) {
+                 warehouse_csv = data.record;
+                debugger;
+            }
+        });
+    } catch(error) {
+        console.error('Error fetching data:', error);
+    }
+
     try {
         $.ajax({
             async: false,
@@ -106,9 +114,7 @@ function init() {
                 "X-Master-Key": "$2b$10$GWk8ymBTd3NuWboIZsmU8OE59AKFCDvHL61VanWfWlbqmHA/8C7Ta"
             },
             success: function (data) {
-                // jsonData = data.record;
                  warehouse = data.record;
-                //debugger;
             }
         });
     } catch(error) {
@@ -119,7 +125,7 @@ function init() {
 
 
     
-    
+    debugger;
       
       
 
