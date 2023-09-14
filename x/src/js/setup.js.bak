@@ -1,0 +1,896 @@
+import warehouse from '../../data/warehouse.json' assert { type: "json" };
+import * as THREE from 'three';
+import { OrbitControls } from "https://unpkg.com/three@0.145/examples/jsm/controls/OrbitControls.js";
+import { DecalGeometry } from "https://unpkg.com/three@0.145/examples/jsm/geometries/DecalGeometry.js";
+
+var board, scene, camera, renderer, controls, selectedPiece = null;
+var INTERSECTED;
+var selected = null;
+var mouse, raycaster, helper, decalMaterial;
+var Pallets = [];
+
+// three.js
+let sprite;
+let mesh;
+let spriteBehindObject;
+let annotation;
+let ground;
+var aDiv;
+
+function csvFileToJSON(content){
+    
+          // var jsonData = [];
+          var headers = [];
+          var rows = content.split("\n");		
+          console.log(rows.length);		
+          for (var i = 0; i < rows.length; i++) {
+              var cells = rows[i].split(",");
+              
+              var rowData = {};
+              for(var j=0;j<cells.length;j++){
+                  
+                  if(i==0){
+                      var headerName = cells[j].trim();
+                      headerName = (cells[j]).replace(/"/g, "")
+
+                      /* {
+                            "LPN": "LPN004",
+                            "Warehouse ID": "1",
+                            "Shipment ID": "1",
+                            "Coordinate X": "10",
+                            "Coordinate Y": "100",
+                            "Coordinate Z": "0",
+                            "Length": "8",
+                            "Width": "10",
+                            "Height": "5",
+                            "Unit": "m",
+                            "Available": "Yes"
+                        } */
+
+                      // let newName = normalizeHeaderName(headerName);
+                      headers.push(headerName);
+                       
+
+                  }else{
+                      var key = headers[j];
+                      if(key){
+                          rowData[key] = cells[j].trim();
+                          rowData[key]  = (cells[j]).replace(/"/g, "")
+                      }
+                  }
+              }
+              //skip the first row (header) data
+              if(i!=0){
+                  // console.log(rowData);
+                  Pallets.push(rowData);
+                  
+              }
+          }
+
+
+
+          // Pallets = JSON.stringify(Pallets,null,4);
+          console.log("Number of rows fetched : "+ Pallets.length)
+          console.log(Pallets[0]);
+          
+          // console.log(Pallets);
+
+          /* Pallets.forEach( function (pallet) {
+
+                // const {LPN, Coordinates, Dimensions, Weight, Available} = pallet;
+                console.log("for Each " + pallet);
+                createPalleteBox(pallet, 60, 40);
+          })  */
+
+
+          
+           
+          //displaying the json result in string format
+          // document.getElementById("display_data_in_readable_format").value=JSON.stringify(jsonData,null,4);
+          
+      
+}
+function downloadFromGoogleDocs() {
+    $.ajax({
+
+        // Our sample url to make request
+
+        // async: true,
+    
+    
+    
+        /* xhrFields: {
+            responseType: "csv", // to avoid binary data being mangled on charset conversion
+        }, */
+
+        url:
+            // 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTLGGStlWeH3deKfYS8ixfrgJN0tKz_85-dOnM-I7fRG_5uysptLRdFoxpqAbn-EphEm8wM0G_nuqLF/pub?gid=0&single=true',
+            'https://docs.google.com/spreadsheets/d/1OuIImGMSneSSPGCBjgLu-qOkmULzVXw3RAli8tpux9g/gviz/tq?tqx=out:csv',
+
+        // Type of Request
+        type: "GET",
+
+        // Function to call when to
+        // request is ok
+        success: function (data) {
+            // let x = JSON.stringify(data);
+            console.log(data);
+
+            csvFileToJSON(data);
+        },
+
+        // Error handling
+        error: function (error) {
+            console.log(`Error ${error}`);
+        }
+    });
+}
+
+function createGround(length, width) {
+
+    // var planeMaterial = new THREE.MeshLambertMaterial({color: 0x7bd9f6});
+    // var groundMaterial = new THREE.MeshBasicMaterial({color: 0x7BD9F6});
+    // var groundMaterial = new THREE.MeshBasicMaterial({color: 0x7bd9f6, side: THREE.DoubleSide});
+    var groundMaterial = new THREE.MeshPhongMaterial({
+        color: 0x156289,
+        emissive: 0x072534,
+        side: THREE.DoubleSide,
+        shading: THREE.FlatShading
+    });
+    var groundGeometry = new THREE.PlaneGeometry(length, width, 17, 17);
+
+    const line = new THREE.LineSegments(
+        new THREE.WireframeGeometry(groundGeometry),
+        new THREE.LineBasicMaterial({
+            color: 0xffffff,
+            linewidth: 1,
+            opacity: 0.25,
+            transparent: true
+        })
+    );
+    /* var groundMaterial = new THREE.MeshLambertMaterial({
+            map: createRepeatingTexture("./js/grass.jpg", 5, 5)
+    }); */
+    ground = new THREE.Mesh(groundGeometry, groundMaterial);
+    ground.receiveShadow  = true;
+    ground.rotation.x = -0.5 * Math.PI;
+    // rotate and position the plane
+    ground.position.x = 0;
+    ground.position.y = 0;
+    ground.position.z = 0; 
+
+    /*
+    mesh = new THREE.Mesh(
+        cubeGeometry,
+        new THREE.MeshPhongMaterial({
+            color: 0x156289,
+            emissive: 0x072534,
+            side: THREE.DoubleSide,
+            shading: THREE.FlatShading
+        })
+    );
+
+    const line = new THREE.LineSegments(
+        new THREE.WireframeGeometry(cubeGeometry),
+        new THREE.LineBasicMaterial({
+            color: 0xffffff,
+            linewidth: 1,
+            opacity: 0.25,
+            transparent: true
+        })
+    );
+    */
+    return ground;
+}
+
+function disablePopup()
+{
+    var nodes = document.getElementById("container").getElementsByTagName('*');
+    for(var i = 0; i < nodes.length; i++){
+         nodes[i].disabled = true;
+    }
+
+    // document.getElementById("number").disabled = true;
+}
+
+function computeScreenSpaceBoundingBox(mesh, camera) {
+    var vertices = mesh.geometry.vertices;
+    var vertex = new THREE.Vector3();
+    var min = new THREE.Vector3(1, 1, 1);
+    var max = new THREE.Vector3(-1, -1, -1);
+    
+    for (var i = 0; i < vertices.length; i++) {
+        var vertexWorldCoord = vertex.copy(vertices[i]).applyMatrix4(mesh.matrixWorld);
+        var vertexScreenSpace = vertexWorldCoord.project(camera);
+        min.min(vertexScreenSpace);
+        max.max(vertexScreenSpace);
+    }
+    
+    return new THREE.Box2(min, max);
+}
+  
+function normalizedToPixels(coord, renderWidthPixels, renderHeightPixels) {
+    var halfScreen = new THREE.Vector2(renderWidthPixels/2, renderHeightPixels/2)
+    return coord.clone().multiply(halfScreen);
+}
+
+function createPalleteBox(LPN, aCoordinate, aDimension, wFloorLength, wFloorWidth)
+{
+    const {x, y, z} = aCoordinate;
+    const {Length, Width, Height} = aDimension;
+
+    console.log(x, y, z);
+    console.log(Length, Width, Height);
+
+    const texture = new THREE.TextureLoader().load("../textures/crate.gif");
+    var material = new THREE.MeshLambertMaterial({ map: texture });
+
+    var canvas = document.createElement('canvas');
+    
+    var context = canvas.getContext( '2d' );
+    context.fillStyle = 'tan';
+    context.fillRect( 0, 0, 512, 512 );
+    context.strokeStyle = 'blue';
+    context.font = '30px Arial bold';
+    context.textAlign = 'center';
+    // context.fillStyle = 'lightgray';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.strokeText(LPN, canvas.width / 2, canvas.height / 2);
+
+    // console.log(pallet.Dimensions.width)
+    var geom = new THREE.BoxGeometry(aDimension.Length, aDimension.Height, aDimension.Width);
+    const canvasM = new THREE.CanvasTexture(canvas);
+    var materialC = new THREE.MeshLambertMaterial( {map: canvasM} );
+    canvasM.needsUpdate = false;
+    var palletBox = new THREE.Mesh(geom, 
+        [
+    	    material,
+    	    material,
+    	    // new THREE.MeshLambertMaterial( {color: 'lightgray'} ),
+            materialC, // TOP
+    	    material,
+    	    material,
+    	    material,
+        ]  
+        // material
+      );
+
+    palletBox.name = "pallet-" + board.children.length;
+    palletBox.userData.name = LPN;
+
+    palletBox.name = LPN;
+    palletBox.userData.Dimensions = aDimension;
+    palletBox.userData.Coordinates = aCoordinate;
+
+    // aPallet.translateX(Math.round(30 - Length/2)); // subtract : length / 2 
+    // aPallet.translateY(Math.round(20 - Height/2)); // half of height h/2 (to bring on top of plane)
+    
+    // aPallet.translateZ(-30);  // camera at -30, 40, 30. half of width
+    // l:8, h:5, w:3
+    
+    palletBox.translateX(wFloorLength/2 - Width/2); // subtract : depth / 2 
+    palletBox.translateY(Height/2); // half of height h/2 (to bring on top of plane)
+    palletBox.translateZ(-wFloorWidth/2 + Length/2);  // camera at -30, 40, 30. length/2
+
+    /*
+    var object = new THREE.Mesh(
+			new THREE.BoxGeometry( 2, 2, 2 ),
+      [
+    	    new THREE.MeshLambertMaterial( {color: 'lightgray'}),
+    	    new THREE.MeshLambertMaterial( {color: 'lightgray'}),
+    	    new THREE.MeshLambertMaterial( {map: new THREE.CanvasTexture(canvas)} ),
+    	    new THREE.MeshLambertMaterial( {color: 'lightgray'}),
+    	    new THREE.MeshLambertMaterial( {color: 'lightgray'}),
+    	    new THREE.MeshLambertMaterial( {color: 'lightgray'}),
+      ]
+    );	*/
+
+    // palletBox.position.x = palletBox.position.x - x;
+    // camera.position.x += x
+
+
+    // select the Y world axis
+    const myAxis = new THREE.Vector3(0, 1, 0);
+    // rotate the mesh 90 on this axis
+    palletBox.rotateOnWorldAxis(myAxis, THREE.MathUtils.degToRad(90));
+
+
+    palletBox.position.x = palletBox.position.x - y;
+    // palletBox.position.y = y;
+    palletBox.position.z = palletBox.position.z + x;;
+    palletBox.castShadow = true;
+
+    board.add(palletBox);
+}
+
+function createRepeatingTexture(fileName, repeatX, repeatY) {
+    // var texture = THREE.ImageUtils.loadTexture(fileName);
+    const texture = new THREE.TextureLoader().load(fileName);
+    texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(repeatX, repeatY);
+
+    return texture;
+}
+
+  
+function init() {
+
+    // disablePopup();
+        
+
+    const {Length, Width, Height} = warehouse.Dimensions;
+    console.log("Warehouse Dimensions : " + Length + " x " + Width);
+  
+    // create a scene, that will hold all our elements such as objects, cameras and lights.
+    scene = new THREE.Scene();
+    // create a camera, which defines where we're looking at.
+    camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    // create a render and set the size
+    renderer = new THREE.WebGLRenderer({
+        antialias : true
+    });
+
+    var div = document.getElementById('webgl-output');
+    aDiv = document.createElement('container');
+    div.appendChild(aDiv);
+
+    // ✅ Add classes to element
+    aDiv.classList.add('annotation', 'element_class');
+
+
+    annotation = document.querySelector(".annotation");
+
+    const numberTexture = new THREE.CanvasTexture(
+        document.querySelector("#aDiv")
+    );
+    numberTexture.needsUpdate = false;
+    const spriteMaterial = new THREE.SpriteMaterial({
+
+        map: numberTexture,
+        alphaTest: 0.5,
+        transparent: true,
+        depthTest: false,
+        depthWrite: false
+    });
+    
+
+    sprite = new THREE.Sprite(spriteMaterial);
+    sprite.position.set(250, 250, 250);
+    sprite.scale.set(60, 60, 1);
+    scene.add(sprite);
+
+    // canvasS = document.createElement('canvas');
+    // var context = canvasS.getContext( '2d' );
+  
+    // renderer.setClearColor(new THREE.Color(0x000000));
+    renderer.setClearColor(0x333333, 1);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    
+    // add the output of the renderer to the html element
+    document.getElementById("webgl-output").appendChild(renderer.domElement);
+  
+    mouse = new THREE.Vector2();
+    raycaster = new THREE.Raycaster();
+    helper = new THREE.Object3D();
+
+
+    createGround(Length, Width);
+    scene.add(ground); 
+
+  
+    // position and point the camera to the center of the scene
+    camera.position.x = -30;
+    camera.position.y = 40;
+    camera.position.z = 30;
+    camera.lookAt(scene.position);
+  
+    // add subtle ambient lighting
+    var ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambientLight);
+
+    const skyColor = 0xb1e1ff // light blue
+    const groundColor = 0xb97aff // brownish
+    const light = new THREE.HemisphereLight(skyColor, groundColor)
+    light.position.set(0, 8, 0)
+    scene.add(light) 
+    // const helper = new THREE.HemisphereLightHelper(light, 5)
+    // scene.add(helper)
+
+    /* const slight = new THREE.SpotLight(0xffffff, 2)
+    slight.position.set(0, 0, 20)
+    // for shadow
+    slight.castShadow = true
+    slight.shadow.mapSize.width = 1024
+    slight.shadow.mapSize.height = 1024
+    slight.shadow.camera.near = 0.5
+    slight.shadow.camera.far = 100
+    scene.add(slight)  */
+    // const shelper = new THREE.SpotLightHelper(slight)
+    // scene.add(shelper)
+
+
+    // add spotlight for the shadows
+    
+    /* var spotLight = new THREE.SpotLight(0xffffff, 1, 180, Math.PI/4);
+    spotLight.shadow.mapSize.height = 2048;
+    spotLight.shadow.mapSize.width = 2048;
+    spotLight.position.set(-40, 60, -10); // camera: -30, 40, 30
+    spotLight.castShadow = true;
+    scene.add(spotLight); */
+
+     // add subtle ambient lighting
+    /* var ambiColor = "#1c1c1c";
+    var ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambientLight); */
+
+    // var ambientLight = new THREE.AmbientLight( 0xffffff, 0.6 );
+    // scene.add( ambientLight );
+
+    // var target = new THREE.Object3D();
+    // target.position = new THREE.Vector3(5, 0, 0);
+
+    /* var pointColor = "#ff5808";
+    var directionalLight = new THREE.DirectionalLight(pointColor, 6);
+    directionalLight.position.set(-40, 60, -10);
+    directionalLight.castShadow = true;
+    directionalLight.shadow.camera.near = 2;
+    directionalLight.shadow.camera.far = 80;
+    directionalLight.shadow.camera.left = -30;
+    directionalLight.shadow.camera.right = 30;
+    directionalLight.shadow.camera.top = 30;
+    directionalLight.shadow.camera.bottom = -30;
+
+    directionalLight.intensity = 0.5;
+    directionalLight.shadow.mapSize.width = 1024;
+    directionalLight.shadow.mapSize.height = 1024;
+
+    scene.add(directionalLight); */
+    
+    // var shadowCamera = new THREE.CameraHelper(directionalLight.shadow.camera)
+    downloadFromGoogleDocs();
+
+    // var material = new THREE.MeshLambertMaterial({color: 0x44ff44});
+    board = new THREE.Group();
+    warehouse.Pallets.forEach( function (pallet) {
+
+        const {LPN, Coordinates, Dimensions, Weight, Available} = pallet;
+        createPalleteBox(LPN, Coordinates, Dimensions, Length, Width)
+    })
+    scene.add(board);
+  
+    // var materials = [
+    //   new THREE.MeshLambertMaterial({opacity: 0.8, color: 0x44ff44, transparent: true}),
+    //   new THREE.MeshBasicMaterial({color: 0x000000, wireframe: true})
+    // ];
+  
+    // var cube = THREE.SceneUtils.createMultiMaterialObject(geom, materials);
+
+    // scene.position.set( 30, 20, -20 );
+    // const axesHelper = new THREE.AxesHelper(20);
+    // scene.add(axesHelper); // X == red, Y == green, Z == blue
+  
+    controls = new OrbitControls(camera, renderer.domElement)
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.25;
+    controls.enablePan = false;
+    controls.maxPolarAngle = THREE.MathUtils.degToRad(80);
+
+    document.addEventListener( 'click', onClick );
+    // document.addEventListener('mousedown', onDocumentMouseDown, false);
+    
+    render();
+}
+
+function onClick( event ) {
+
+    event.preventDefault();
+
+    // mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
+    // mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+
+    var vector = new THREE.Vector3((event.clientX / window.innerWidth) * 2 - 1, -(event.clientY / window.innerHeight) * 2 + 1, 0.5);
+    vector = vector.unproject(camera);
+
+    mouse.x = vector.x;
+    mouse.y = vector.y;
+
+
+    raycaster = new THREE.Raycaster(camera.position, vector.sub(camera.position).normalize());
+    // var intersects = raycaster.intersectObjects([sphere, cylinder, cube]);
+    
+    // raycaster.setFromCamera( mouse, camera );
+
+    const intersects = raycaster.intersectObjects(
+        board.children.filter((mesh) => {
+          return mesh.geometry.type === 'BoxGeometry'
+        })
+    );
+    // disablePopup();
+    if(intersects.length == 0) {
+
+        selected = null;
+        return;
+    }
+
+    /* 
+     var boundingBox2D = computeScreenSpaceBoundingBox(mesh, camera);
+
+  // Convert normalized screen coordinates [-1, 1] to pixel coordinates:
+  var pixelCoordScale = normalizedToPixels(boundingBox2D.getSize(), renderWidth, renderHeight); 
+  var pixelCoordCenter = normalizedToPixels(boundingBox2D.getCenter(), renderWidth, renderHeight);
+
+  overlayBox.scale.set(pixelCoordScale.x, pixelCoordScale.y, 1);
+  overlayBox.position.set(pixelCoordCenter.x, pixelCoordCenter.y, 0)
+  overlayBox.needsUpdate = true;
+  */
+    if ( intersects.length > 0 ) {
+
+        console.log(intersects[ 0 ])
+
+        var intersected = intersects[ 0 ];
+        selected = intersects[ 0 ].object;
+        console.log("Selected box : " + selected.name);
+        console.log(vector.x, vector.y);
+        console.log(intersects[ 0 ].point.x, intersects[ 0 ].point.y, intersects[ 0 ].point.z)
+
+        // const faceIndex = intersected.faceIndex;
+		// const object = intersected.object;
+		
+		// object.geometry.faces[ faceIndex ].color.set( Math.random() * 0xffffff );
+		// object.geometry.colorsNeedUpdate = true;
+        
+    
+        var n = intersects[ 0 ].face.normal.clone();
+        n.transformDirection( intersects[ 0 ].object.matrixWorld );
+        n.add( intersects[ 0 ].point );
+
+        helper.position.copy( intersects[ 0 ].point );
+        helper.lookAt( n );
+    
+        //var position = intersects[ 0 ].point;
+        //var size = new THREE.Vector3( 10, 0.5, 3 );
+
+        sprite.position.set(intersects[ 0 ].point.x, intersects[ 0 ].point.y, intersects[ 0 ].point.z);
+        // sprite.scale.set(2, 1, 1);
+        
+        
+
+        /* var boundingBox2D = computeScreenSpaceBoundingBox(selected, camera);
+
+        // Convert normalized screen coordinates [-1, 1] to pixel coordinates:
+        var pixelCoordScale = normalizedToPixels(boundingBox2D.getSize(), renderWidth, renderHeigth); 
+        var pixelCoordCenter = normalizedToPixels(boundingBox2D.getCenter(), renderWidth, renderHeigth);
+
+        console.log("clicked ocation in 2d : " + pixelCoordCenter); */
+      
+        // overlayBox.scale.set(pixelCoordScale.x, pixelCoordScale.y, 1);
+        // overlayBox.position.set(pixelCoordCenter.x, pixelCoordCenter.y, 0)
+        // overlayBox.needsUpdate = true;
+    
+        
+
+        var pallet = selected.userData;
+
+
+        console.log("Object clicked :: " + intersects[ 0 ].object.name);
+
+        // console.log("Object Position :: " + intersects[ 0 ].point);
+        var str = "<p> <strong>Pallet Details : " + "</strong><br/><br/>";
+        str += "Name       : " + intersects[ 0 ].object.name + "<br/>";
+        str += "Dimensions : " + pallet.Dimensions.Length + " x " + pallet.Dimensions.Height + " x " + pallet.Dimensions.Width + " " + pallet.Dimensions.Unit + "<br/>";
+        aDiv.innerHTML = str; 
+
+           //     .innerHTML += <b>splitText</b>;
+
+        // document.getElementById("name").innerHTML += intersects[ 0 ].object.name;
+
+        /* var decalGeometry = new DecalGeometry( intersects[ 0 ].object, position, helper.rotation, size );
+        decalMaterial = new THREE.MeshBasicMaterial( { color: 0xffffff, depthWrite: false, polygonOffset: true, polygonOffsetFactor: - 4, } );
+        var decal = new THREE.Mesh( decalGeometry, decalMaterial );
+        decal.position.z += 0.1;
+        const textureS = new THREE.CanvasTexture(canvasS);
+        decal.material.map = textureS;
+        scene.add( decal ); */
+          
+          // board.getObjectByName(name).add(decal);
+          
+          
+          // console.log(textureS);
+          
+          // decal.material.transparent = true;
+    
+    
+    }
+} 
+function updateAnnotationOpacity() {
+    const meshDistance = camera.position.distanceTo(mesh.position);
+    const spriteDistance = camera.position.distanceTo(sprite.position);
+    spriteBehindObject = spriteDistance > meshDistance;
+    sprite.material.opacity = spriteBehindObject ? 0.25 : 1;
+
+    // Do you want a number that changes size according to its position?
+    // Comment out the following line and the `::before` pseudo-element.
+    sprite.material.opacity = 0;
+}
+
+function updateScreenPosition() {
+
+    if(selected != null)
+        aDiv.classList.remove("element_class");
+    else {
+        aDiv.classList.add("element_class");
+        return;
+    }
+
+    const vector = new THREE.Vector3(helper.x, helper.y, helper.z);
+    const canvas = renderer.domElement;
+
+    vector.project(camera);
+   
+    vector.x = Math.round((0.5 + vector.x / 2) * (canvas.width / window.devicePixelRatio));
+    vector.y = Math.round((0.5 - vector.y / 2) * (canvas.height / window.devicePixelRatio));
+
+    // vector.x += 40;
+    // vector.y += -30;
+
+
+    annotation.style.top = `${vector.y}px`;
+    annotation.style.left = `${vector.x}px`;
+    annotation.style.opacity = spriteBehindObject ? 0.25 : 1;
+}
+
+
+function onMouseMove( event ) {
+ 
+    // calculate mouse position in normalized device coordinates
+    // (-1 to +1) for both components
+ 
+    mouse.x = ( event.clientX / window.innerWidth ) * 2 - 1;
+    mouse.y = - ( event.clientY / window.innerHeight ) * 2 + 1;
+
+    // gsap.set(popUpEl, {
+    //     x: event.clientX,
+    //     y: event.clientY
+    //   })
+
+    // console.log(mouse.x)
+    // console.log(mouse.y)
+}
+
+function onWindowResize() {
+    var width = window.innerWidth;
+    var height = window.innerHeight;
+    renderer.setSize(width, height);
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+}
+
+function render() {
+    controls.update();
+    // hoverBoxes();
+    // resetBoxes();
+    updateScreenPosition();
+    requestAnimationFrame(render);
+    renderer.render(scene, camera);
+}
+
+window.addEventListener('mousemove', onMouseMove);
+window.addEventListener('resize', onWindowResize, false);
+window.onload = init;
+
+/* document.addEventListener("DOMContentLoaded", (event) => {
+    console.log("DOM fully loaded and parsed");
+    init();
+}) */
+
+function resetBoxes() {
+    /* for (let i = 0; i < board.children.length; i++) {
+      if (board.children[i].material) {
+        board.children[i].material.opacity = board.children[i].userData.boxNumber == selectedPiece ? 0.5 : 1.0;
+      }
+    } */
+    board.children.filter((mesh) => {
+        if( mesh.geometry.type === 'BoxGeometry') {
+            mesh.material.opacity = mesh.userData.boxNumber == selectedPiece ? 0.5 : 1.0;
+        }
+    })
+}
+
+function hoverBoxes() {
+
+    raycaster.setFromCamera (mouse, camera);
+    // const intersects = raycaster.intersectObjects(board.children);
+
+    // create an array containing all objects in the scene with which the ray intersects
+    const intersects = raycaster.intersectObjects(
+        board.children.filter((obj) => {
+          return (obj.geometry.type === 'BoxGeometry')
+        })
+      )
+
+	// INTERSECTED = the object in the scene currently closest to the camera 
+	//		and intersected by the Ray projected from the mouse position 	
+	
+	// if there is one (or more) intersections
+	if ( intersects.length > 0 )
+	{
+		// if the closest object intersected is not the currently stored intersection object
+		if ( intersects[ 0 ].object != INTERSECTED ) 
+		{
+		    // restore previous intersection object (if it exists) to its original color
+			if ( INTERSECTED ) 
+                if (typeof INTERSECTED.currentHex !== 'undefined')
+				    INTERSECTED.material.color.setHex( INTERSECTED.currentHex );
+
+			// store reference to closest object as current intersection object
+			INTERSECTED = intersects[ 0 ].object;
+
+            if (typeof INTERSECTED.material.color !== 'undefined') {
+                // color is defined
+                // store color of closest object (for later restoration)
+			    INTERSECTED.currentHex = INTERSECTED.material.color.getHex();
+			    // set a new color for closest object
+			    INTERSECTED.material.color.setHex( 0xE5B80B );
+            }
+			
+            // INTERSECTED.material.color.setHex( 0xE5B80B );
+            console.log("Box name : " + intersects[ 0 ].object.userData.name)
+			
+		}
+	} 
+	else // there are no intersections
+	{
+		// restore previous intersection object (if it exists) to its original color
+	    if ( INTERSECTED ) 
+            if (typeof INTERSECTED.currentHex !== 'undefined')
+		        INTERSECTED.material.color.setHex( INTERSECTED.currentHex );
+		// remove previous intersection object reference
+		//     by setting current intersection object to "nothing"
+		INTERSECTED = null;
+	}
+
+    
+    /* for (let i = 0; i < intersects.length; i++)
+    {
+        let box = intersects[i].object;
+
+        // console.log("Selected box number " + box)
+        intersects[i].object.material.transparent = true;
+        intersects[i].object.material.opacity = 0.5;
+
+        // gsap.set(popUpEl, {
+        //     display: 'block'
+        //   })
+        
+       
+
+       
+    } */
+}
+    
+/*
+function toScreenPosition(obj, camera)
+{
+    var vector = new THREE.Vector3();
+
+    var widthHalf = 0.5*renderer.context.canvas.width;
+    var heightHalf = 0.5*renderer.context.canvas.height;
+
+    obj.updateMatrixWorld();
+    vector.setFromMatrixPosition(obj.matrixWorld);
+    vector.project(camera);
+
+    vector.x = ( vector.x * widthHalf ) + widthHalf;
+    vector.y = - ( vector.y * heightHalf ) + heightHalf;
+
+    return { 
+        x: vector.x,
+        y: vector.y
+    };
+
+};
+*/
+
+/*
+
+our ambient light configuration was not correct. The intensity value was again way too hight. Try it with:
+
+var ambientLight = new THREE.AmbientLight( 0xffffff, 0.6 );
+scene.add( ambientLight );
+Besides, you should also configure the renderer to output sRGB for proper colors:
+
+renderer.outputEncoding = THREE.sRGBEncoding;
+It looks then like so:
+
+
+        var light = new THREE.DirectionalLight( 0xffffff, 10.0,5000 );
+		scene.add( light );
+		light.position.set(0,10,0);
+		light.castShadow=true;
+		light.shadow.camera.near = 1;
+		light.shadow.camera.far = 5;
+		light.shadow.camera.right = 1;
+		light.shadow.camera.left = - 1;
+		light.shadow.camera.top	= 1;
+		light.shadow.camera.bottom = -0;
+		light.shadow.mapSize.width = 500;
+		light.shadow.mapSize.height = 509;
+
+        DirectionalLight has only two parameters. color and intensity. An intensity value of 10 is usually way too high. Try it with 1 instead
+
+*/        
+
+/* function createFloor() {
+
+    let pos = { x: 0, y: -1, z: 3 };
+    let scale = { x: 100, y: 2, z: 100 };
+    
+    let blockPlane = new THREE.Mesh(new THREE.BoxBufferGeometry(),
+        new THREE.MeshPhongMaterial({ color: 0x000000 }));
+    blockPlane.position.set(pos.x, pos.y, pos.z);
+    blockPlane.scale.set(scale.x, scale.y, scale.z);
+    blockPlane.castShadow = true;
+    blockPlane.receiveShadow = true;
+    scene.add(blockPlane);
+   
+} */
+
+/*
+
+    // Make use of the `TextureLoader` object to handle asynchronus loading and
+    // assignment of the texture to your material    
+    // var planeMaterial = new THREE.MeshBasicMaterial({color: 0xad9773});
+    /* var loader = new THREE.TextureLoader();
+    loader.load( 'https://images.pexels.com/photos/358482/pexels-photo-358482.jpeg?auto=compress&cs=tinysrgb', 
+        function ( texture ) {    
+
+            // The texture has loaded, so assign it to your material object. In the 
+            // next render cycle, this material update will be shown on the plane 
+            // geometry
+            planeMaterial.map = texture;
+            
+            planeMaterial.needsUpdate = true;
+        }
+    ); */
+
+    /* var planeGeometry = new THREE.PlaneGeometry(60, 40, 1, 1);
+    var plane = new THREE.Mesh( planeGeometry, planeMaterial );
+    plane.receiveShadow = true;
+
+    plane.rotation.x = -0.5 * Math.PI;
+    plane.position.x = 0;
+    plane.position.y = 0;
+    plane.position.z = 0;
+
+    // add the plane to the scene
+    scene.add(plane); 
+
+*/
+
+/*
+document.addEventListener("DOMContentLoaded", (event) => {
+    console.log("DOM fully loaded and parsed");
+    // disablePopup();
+    $("#container").children().prop('disabled', true);
+    $("#number").children().prop('disabled', true)
+})*/
+
+/*
+function onDocumentMouseDown(event) {
+
+    var vector = new THREE.Vector3((event.clientX / window.innerWidth) * 2 - 1, -(event.clientY / window.innerHeight) * 2 + 1, 0.5);
+    vector = vector.unproject(camera);
+
+    var raycaster = new THREE.Raycaster(camera.position, vector.sub(camera.position).normalize());
+    var intersects = raycaster.intersectObjects(board);
+
+    if (intersects.length > 0) {
+        console.log(intersects[0]);
+        intersects[0].object.material.transparent = true;
+        intersects[0].object.material.opacity = 0.1;
+    }
+}
+
+
+*/
